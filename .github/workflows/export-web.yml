@@ -18,17 +18,42 @@ jobs:
   export:
     name: Export Godot project
     runs-on: ubuntu-latest
-    container:
-      image: barichello/godot-ci:4.3.0
     steps:
-      - name: Checkout
+      - name: Checkout project
         uses: actions/checkout@v4
 
-      - name: Export Web build
+      - name: Install Godot 4.3 temporarily on the GitHub runner
+        shell: bash
         run: |
+          set -e
+          GODOT_VERSION="4.3"
+          GODOT_TAG="4.3-stable"
+          GODOT_BIN="Godot_v${GODOT_TAG}_linux.x86_64"
+
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/${GODOT_BIN}.zip"
+          unzip -q "${GODOT_BIN}.zip"
+          chmod +x "${GODOT_BIN}"
+          echo "$PWD" >> "$GITHUB_PATH"
+
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_export_templates.tpz"
+          unzip -q "Godot_v${GODOT_TAG}_export_templates.tpz" -d "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+
+          echo "GODOT_BIN=$PWD/${GODOT_BIN}" >> "$GITHUB_ENV"
+
+      - name: Validate project
+        shell: bash
+        run: |
+          set -e
+          "$GODOT_BIN" --headless --path . --editor --quit
+
+      - name: Export Web build
+        shell: bash
+        run: |
+          set -e
           mkdir -p build/web
-          godot --headless --path . --editor --quit
-          godot --headless --path . --export-release Web build/web/index.html
+          "$GODOT_BIN" --headless --path . --export-release Web build/web/index.html
+          test -f build/web/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -46,4 +71,3 @@ jobs:
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
